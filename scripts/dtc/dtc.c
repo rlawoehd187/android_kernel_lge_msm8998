@@ -32,11 +32,10 @@ int minsize;		/* Minimum blob size */
 int padsize;		/* Additional padding to blob */
 int alignsize;		/* Additional padding to blob accroding to the alignsize */
 int phandle_format = PHANDLE_BOTH;	/* Use linux,phandle or phandle properties */
-int show_deleted_list;
 int generate_symbols;	/* enable symbols & fixup support */
 int generate_fixups;		/* suppress generation of fixups on symbol support */
 int auto_label_aliases;		/* auto generate labels -> aliases */
-
+int show_deleted_list;
 static int is_power_of_2(int x)
 {
 	return (x > 0) && ((x & (x - 1)) == 0);
@@ -63,7 +62,7 @@ static void fill_fullpaths(struct node *tree, const char *prefix)
 #define FDT_VERSION(version)	_FDT_VERSION(version)
 #define _FDT_VERSION(version)	#version
 static const char usage_synopsis[] = "dtc [options] <input file>";
-static const char usage_short_opts[] = "qI:O:o:V:d:R:S:p:a:fb:i:H:sW:E:D@Ahv";
+static const char usage_short_opts[] = "qI:O:o:V:d:R:S:p:a:fb:i:H:sW:E:@ADhv";
 static struct option const usage_long_opts[] = {
 	{"quiet",            no_argument, NULL, 'q'},
 	{"in-format",         a_argument, NULL, 'I'},
@@ -82,9 +81,9 @@ static struct option const usage_long_opts[] = {
 	{"phandle",           a_argument, NULL, 'H'},
 	{"warning",           a_argument, NULL, 'W'},
 	{"error",             a_argument, NULL, 'E'},
-	{"deleted-list",     no_argument, NULL, 'D'},
 	{"symbols",	     no_argument, NULL, '@'},
 	{"auto-alias",       no_argument, NULL, 'A'},
+	{"deleted-list",     no_argument, NULL, 'D'},
 	{"help",             no_argument, NULL, 'h'},
 	{"version",          no_argument, NULL, 'v'},
 	{NULL,               no_argument, NULL, 0x0},
@@ -121,9 +120,9 @@ static const char * const usage_opts_help[] = {
 	 "\t\tspecific2 - '&phandle(id)' instead of '&phandle'",
 	"\n\tEnable/disable warnings (prefix with \"no-\")",
 	"\n\tEnable/disable errors (prefix with \"no-\")",
-	"\n\tShow list of deleted nodes and properties at end of dts(dts to dts only)",
 	"\n\tEnable generation of symbols",
 	"\n\tEnable auto-alias of labels",
+	"\n\tShow list of deleted nodes and properties at end of dts(dts to dts only)",
 	"\n\tPrint this help and exit",
 	"\n\tPrint version and exit",
 	NULL,
@@ -146,7 +145,7 @@ static const char *guess_type_by_name(const char *fname, const char *fallback)
 static const char *guess_input_format(const char *fname, const char *fallback)
 {
 	struct stat statbuf;
-	uint32_t magic;
+	fdt32_t magic;
 	FILE *f;
 
 	if (stat(fname, &statbuf) != 0)
@@ -167,8 +166,7 @@ static const char *guess_input_format(const char *fname, const char *fallback)
 	}
 	fclose(f);
 
-	magic = fdt32_to_cpu(magic);
-	if (magic == FDT_MAGIC)
+	if (fdt32_to_cpu(magic) == FDT_MAGIC)
 		return "dtb";
 
 	return guess_type_by_name(fname, fallback);
@@ -224,7 +222,7 @@ int main(int argc, char *argv[])
 			alignsize = strtol(optarg, NULL, 0);
 			if (!is_power_of_2(alignsize))
 				die("Invalid argument \"%d\" to -a option\n",
-				    optarg);
+				    alignsize);
 			break;
 		case 'f':
 			force = true;
@@ -268,15 +266,13 @@ int main(int argc, char *argv[])
 			parse_checks_option(false, true, optarg);
 			break;
 
-		case 'D':
-			show_deleted_list = 1;
-			break;
-
 		case '@':
 			generate_symbols = 1;
 			break;
 		case 'A':
 			auto_label_aliases = 1;
+		case 'D':
+			show_deleted_list = 1;
 			break;
 
 		case 'h':
@@ -324,6 +320,8 @@ int main(int argc, char *argv[])
 		dti = dt_from_blob(arg);
 	else
 		die("Unknown input format \"%s\"\n", inform);
+
+	dti->outname = outname;
 
 	if (depfile) {
 		fputc('\n', depfile);
