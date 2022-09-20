@@ -118,4 +118,4 @@ always  := $(addprefix ../,$(DTB_LIST))
 $(obj)/../%.dtb: $(src)/$(DTS_PROJECT)/$(DTS_TARGET)/%.dts FORCE
 	$(call if_changed_dep,dtc)
 endif
-clean-files := *.dtb
+clean-files := *.dtbo *.dtb

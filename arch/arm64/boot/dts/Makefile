@@ -11,6 +11,7 @@ dts-dirs += marvell
 dts-dirs += mediatek
 ifneq ($(CONFIG_MACH_LGE), y)
 dts-dirs += qcom
+dts-dirs += lge
 else
 ifeq ($(CONFIG_BUILD_ARM64_DT_OVERLAY),y)
 dts-dirs += qcom
