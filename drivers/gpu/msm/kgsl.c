@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2021, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2008-2020, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -266,6 +266,7 @@ kgsl_mem_entry_create(void)
 		/* put this ref in the caller functions after init */
 		kref_get(&entry->refcount);
 	}
+
 	atomic_set(&entry->map_count, 0);
 	return entry;
 }
@@ -460,6 +461,7 @@ static void kgsl_mem_entry_detach_process(struct kgsl_mem_entry *entry)
 
 	type = kgsl_memdesc_usermem_type(&entry->memdesc);
 	entry->priv->stats[type].cur -= entry->memdesc.size;
+
 	spin_unlock(&entry->priv->mem_lock);
 
 	kgsl_mmu_put_gpuaddr(&entry->memdesc);
@@ -2163,12 +2165,13 @@ static int memdesc_sg_virt(struct kgsl_memdesc *memdesc, unsigned long useraddr)
 	down_read(&current->mm->mmap_sem);
 	if (!check_vma(useraddr, memdesc->size)) {
 		up_read(&current->mm->mmap_sem);
-		ret = ~EFAULT;
+		ret = -EFAULT;
 		goto out;
 	}
 
 	npages = get_user_pages(current, current->mm, useraddr,
-				sglen, write ? FOLL_WRITE : 0, pages, NULL);
+			sglen, write ? FOLL_WRITE : 0, pages, NULL);
+
 	up_read(&current->mm->mmap_sem);
 
 	ret = (npages < 0) ? (int)npages : 0;
@@ -2200,16 +2203,17 @@ static int kgsl_setup_anon_useraddr(struct kgsl_pagetable *pagetable,
 {
 	/* Map an anonymous memory chunk */
 
+	int ret;
+
 	if (size == 0 || offset != 0 ||
 		!IS_ALIGNED(size, PAGE_SIZE))
 		return -EINVAL;
 
 	entry->memdesc.pagetable = pagetable;
 	entry->memdesc.size = (uint64_t) size;
-	entry->memdesc.flags |= KGSL_MEMFLAGS_USERMEM_ADDR;
+	entry->memdesc.flags |= (uint64_t)KGSL_MEMFLAGS_USERMEM_ADDR;
 
 	if (kgsl_memdesc_use_cpu_map(&entry->memdesc)) {
-		int ret;
 
 		/* Register the address in the database */
 		ret = kgsl_mmu_set_svm_region(pagetable,
@@ -2221,7 +2225,12 @@ static int kgsl_setup_anon_useraddr(struct kgsl_pagetable *pagetable,
 		entry->memdesc.gpuaddr = (uint64_t) hostptr;
 	}
 
-	return memdesc_sg_virt(&entry->memdesc, hostptr);
+	ret = memdesc_sg_virt(&entry->memdesc, hostptr);
+
+	if (ret && kgsl_memdesc_use_cpu_map(&entry->memdesc))
+		kgsl_mmu_put_gpuaddr(&entry->memdesc);
+
+	return ret;
 }
 
 static int match_file(const void *p, struct file *file, unsigned int fd)
@@ -2307,7 +2316,6 @@ static int kgsl_setup_dmabuf_useraddr(struct kgsl_device *device,
 	}
 
 	/* Setup the cache mode for cache operations */
-
 	_setup_cache_mode(entry, vma);
 	up_read(&current->mm->mmap_sem);
 	return 0;
@@ -2440,8 +2448,6 @@ long kgsl_ioctl_gpuobj_import(struct kgsl_device_private *dev_priv,
 	entry = kgsl_mem_entry_create();
 	if (entry == NULL)
 		return -ENOMEM;
-
-	spin_lock_init(&entry->memdesc.lock);
 
 	param->flags &= KGSL_MEMFLAGS_GPUREADONLY
 			| KGSL_MEMTYPE_MASK
@@ -2715,8 +2721,6 @@ long kgsl_ioctl_map_user_mem(struct kgsl_device_private *dev_priv,
 
 	if (entry == NULL)
 		return -ENOMEM;
-
-	spin_lock_init(&entry->memdesc.lock);
 
 	/*
 	 * Convert from enum value to KGSL_MEM_ENTRY value, so that
@@ -3498,8 +3502,6 @@ long kgsl_ioctl_sparse_virt_alloc(struct kgsl_device_private *dev_priv,
 	if (entry == NULL)
 		return -ENOMEM;
 
-	spin_lock_init(&entry->memdesc.lock);
-
 	entry->memdesc.flags = KGSL_MEMFLAGS_SPARSE_VIRT;
 	entry->memdesc.size = param->size;
 	entry->memdesc.cur_bindings = 0;
@@ -3610,6 +3612,7 @@ static int _sparse_add_to_bind_tree(struct kgsl_mem_entry *entry,
 	return 0;
 }
 
+/* entry->bind_lock must be held by the caller */
 static int _sparse_rm_from_bind_tree(struct kgsl_mem_entry *entry,
 		struct sparse_bind_object *obj,
 		uint64_t v_offset, uint64_t size)
@@ -4280,7 +4283,6 @@ kgsl_gpumem_vm_close(struct vm_area_struct *vma)
 		return;
 
 	atomic_dec(&entry->map_count);
-
 	kgsl_mem_entry_put(entry);
 }
 
