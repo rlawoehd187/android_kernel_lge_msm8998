@@ -1,10 +1,10 @@
 #include <linux/sysfs.h>
 #include <linux/device.h>
-#include "../mdss_fb.h"
-#include "../mdss_mdp.h"
-#include "../mdss_dsi.h"
+#include "../../mdss_fb.h"
+#include "../../mdss_mdp.h"
+#include "../../mdss_dsi.h"
 
-#include "lge_mdss_sysfs.h"
+#include "../lge_mdss_sysfs.h"
 
 struct device *lge_panel_sysfs_aod = NULL; /* lge common img tune node "/sys/class/panel/aod/" */
 

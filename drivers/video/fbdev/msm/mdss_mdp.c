@@ -2851,10 +2851,6 @@ static DEVICE_ATTR(bw_mode_bitmap, S_IRUGO | S_IWUSR | S_IWGRP,
 #ifdef CONFIG_LGE_VSYNC_SKIP
 void vsync_skip_set_fps(int fps)
 {
-	if (mdss_res == NULL) {
-		pr_warn("%s: mdss_res is NULL\n");
-		return;
-	}
 
 	if (fps == 0 || fps >= 60) {
 		mdss_res->enable_skip_vsync = 0;
@@ -2864,7 +2860,6 @@ void vsync_skip_set_fps(int fps)
 		mdss_res->skip_count = 0;
 		mdss_res->skip_ratio = 60;
 		mdss_res->skip_first = false;
-		pr_debug("Disable frame skip.\n");
 	} else {
 		mdss_res->enable_skip_vsync = 1;
 		mdss_res->skip_value = (60<<16)/fps;
@@ -2872,7 +2867,6 @@ void vsync_skip_set_fps(int fps)
 		mdss_res->bucket = 0;
 		mdss_res->skip_ratio = fps;
 		mdss_res->skip_first = false;
-		pr_debug("Enable frame skip: Set to %lu fps.\n", fps);
 	}
 }
 
